@@ -1,7 +1,8 @@
 const express = require("express");
 const app = express();
-const {User} = require("./db");
+const {User, Habit} = require("./db");
 const bcrypt = require("bcrypt");
+const seed = require("./db/seedFn");
 
 app.use(express.json());
 app.use(express.urlencoded({extended: true}));
@@ -11,6 +12,16 @@ app.get("/", async (req, res, next) => {
 		res.send(
 			"<h1>Welcome to Loginopolis!</h1><p>Log in via POST /login or register via POST /register</p>"
 		);
+	} catch (error) {
+		console.error(error);
+		next(error);
+	}
+});
+
+app.get("/seed", async (req, res, next) => {
+	try {
+		await seed();
+		res.status(200).send("working yeah");
 	} catch (error) {
 		console.error(error);
 		next(error);
@@ -51,6 +62,27 @@ app.post("/login", async (req, res, next) => {
 		console.log(error);
 		next(error);
 	}
+});
+
+//EXTENSION: /me endpoint to return all associated habits
+app.get("/me", async (req, res, next) => {
+	try {
+		const {username, password} = req.body;
+		const foundUser = await User.findOne({
+			where: {username: username},
+			include: {model: Habit, as: "habits"},
+		});
+
+		if (foundUser) {
+			const correctPassword = await bcrypt.compare(password, foundUser.password);
+			if (correctPassword) {
+				res.status(200).send({
+					message: `successfully found ${foundUser.habits.length} habit for user ${foundUser.username}`,
+					habits: foundUser.habits,
+				});
+			} else res.status(200).send("incorrect username or password");
+		}
+	} catch (error) {}
 });
 // we export the app, not listening in here, so that we can run tests
 module.exports = app;
